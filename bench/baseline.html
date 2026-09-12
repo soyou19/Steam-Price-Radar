@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>性能对照基准 · 旧渲染实现</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <!--
+      仅用于性能对照：本页刻意使用「旧实现」（全量渲染 + 每次变更重建 + 无限并发请求），
+      以便用 bench/browser-perf.js 量化对比修复前后的主线程阻塞情况。
+      不影响产品页面功能。样式复用产品的 /styles.css。
+    -->
+    <header class="topbar">
+      <div class="topbar-inner">
+        <div class="brand">
+          <span class="brand-mark" aria-hidden="true">🧪</span>
+          <div class="brand-text">
+            <h1>性能对照基准（旧实现）</h1>
+            <p class="brand-sub">全量渲染 1200 张卡片 · 每次变更重建 DOM · 无并发限制</p>
+          </div>
+        </div>
+        <div class="topbar-right">
+          <span id="conn" class="conn conn--connecting"><span class="conn-dot"></span><span id="conn-text">连接中…</span></span>
+        </div>
+      </div>
+      <div class="stats">
+        <div class="stat"><span class="stat-num" id="stat-total">–</span><span class="stat-label">卡片总数</span></div>
+        <div class="stat"><span class="stat-num" id="render-count">0</span><span class="stat-label">DOM 重建次数</span></div>
+      </div>
+    </header>
+    <main class="layout">
+      <div class="content">
+        <section class="grid" id="grid" aria-busy="true"><div class="skeleton-note">加载中…</div></section>
+        <aside class="panel panel--feed">
+          <div class="feed-head"><h2>实时动态</h2></div>
+          <ul class="feed" id="feed"><li class="feed-empty">暂无事件</li></ul>
+        </aside>
+      </div>
+    </main>
+    <script type="module" src="./baseline.js"></script>
+  </body>
+</html>

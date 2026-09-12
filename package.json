@@ -1,0 +1,53 @@
+{
+  "name": "steam-free-radar",
+  "version": "1.0.0",
+  "private": false,
+  "description": "Steam 限免雷达 — 实时聚合 Steam 限时免费 / 免费周末 / 限免激活码，SSE 主动推送，零第三方依赖",
+  "type": "module",
+  "license": "MIT",
+  "engines": {
+    "node": ">=22.21.0"
+  },
+  "keywords": [
+    "steam",
+    "free-games",
+    "giveaway",
+    "free-to-keep",
+    "free-weekend",
+    "aggregator",
+    "sse",
+    "server-sent-events",
+    "scraper",
+    "realtime",
+    "zero-dependency",
+    "限时免费",
+    "限免"
+  ],
+  "main": "src/app.js",
+  "files": [
+    "src",
+    "public",
+    "bench",
+    "scripts",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "start": "node scripts/run.js",
+    "dev": "node scripts/run.js --dev",
+    "once": "node scripts/run.js --once",
+    "check": "node scripts/run.js --check",
+    "check:docs": "node scripts/check-doc-links.js",
+    "smoke": "node scripts/smoke.js",
+    "test": "node --test test/*.test.js",
+    "start:direct": "node --use-system-ca src/app.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/OWNER/REPO.git"
+  },
+  "bugs": {
+    "url": "https://github.com/OWNER/REPO/issues"
+  },
+  "homepage": "https://github.com/OWNER/REPO#readme"
+}

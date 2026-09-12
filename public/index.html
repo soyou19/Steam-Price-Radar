@@ -1,0 +1,200 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Steam 限免雷达 · 实时免费信息聚合</title>
+    <meta name="description" content="实时聚合 Steam 限时免费、免费周末与限免激活码信息，新内容即时推送。" />
+    <link rel="stylesheet" href="/styles.css" />
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%8E%81%3C/text%3E%3C/svg%3E" />
+  </head>
+  <body>
+    <a class="skip-link" href="#grid">跳到内容</a>
+
+    <header class="topbar">
+      <div class="topbar-inner">
+        <div class="brand">
+          <span class="brand-mark" aria-hidden="true">🎁</span>
+          <div class="brand-text">
+            <h1>Steam 限免雷达</h1>
+            <p class="brand-sub">自动聚合限时免费 · 实时推送</p>
+          </div>
+        </div>
+
+        <div class="topbar-right">
+          <span id="conn" class="conn conn--connecting" title="实时推送连接状态">
+            <span class="conn-dot" aria-hidden="true"></span>
+            <span id="conn-text">连接中…</span>
+          </span>
+          <button id="notify-btn" class="btn btn--ghost" type="button" title="开启浏览器桌面通知">
+            🔔 开启通知
+          </button>
+          <button id="refresh-btn" class="btn btn--primary" type="button" title="立即抓取一次">
+            ⟳ 立即刷新
+          </button>
+        </div>
+      </div>
+
+      <div class="stats" id="stats" aria-live="polite">
+        <button type="button" class="stat stat--clickable" data-type="keep" title="筛选：限时免费">
+          <span class="stat-num" id="stat-keep">–</span><span class="stat-label">限时免费</span>
+        </button>
+        <button type="button" class="stat stat--clickable" data-type="weekend" title="筛选：免费周末">
+          <span class="stat-num" id="stat-weekend">–</span><span class="stat-label">免费周末</span>
+        </button>
+        <button type="button" class="stat stat--clickable" data-type="key" title="筛选：免费激活码">
+          <span class="stat-num" id="stat-key">–</span><span class="stat-label">免费激活码</span>
+        </button>
+        <button type="button" class="stat stat--clickable" data-type="f2p" title="筛选：永久免费">
+          <span class="stat-num" id="stat-f2p">–</span><span class="stat-label">永久免费</span>
+        </button>
+        <button type="button" class="stat stat--clickable" data-type="discount"
+                title="筛选：高折扣参考（仅来自已精确校验的条目，样本量有限）">
+          <span class="stat-num" id="stat-discount">–</span><span class="stat-label">高折扣参考</span>
+        </button>
+        <button type="button" class="stat stat--clickable" data-type="all" title="显示全部类型">
+          <span class="stat-num" id="stat-total">–</span><span class="stat-label">收录总数</span>
+        </button>
+        <div class="stat stat--muted">
+          <span class="stat-num" id="stat-updated">–</span><span class="stat-label">最近更新</span>
+        </div>
+      </div>
+    </header>
+
+    <main class="layout">
+      <div id="banner" class="banner" hidden></div>
+
+      <section class="panel panel--filters" aria-label="筛选">
+        <div class="filters">
+          <label class="field field--search">
+            <span class="field-label">搜索</span>
+            <input id="q" type="search" placeholder="游戏名 / AppID …" autocomplete="off" />
+          </label>
+
+          <label class="field">
+            <span class="field-label">类型</span>
+            <select id="filter-type">
+              <option value="all">全部类型</option>
+              <option value="keep">限时免费</option>
+              <option value="weekend">免费周末</option>
+              <option value="key">免费激活码</option>
+              <option value="f2p">永久免费</option>
+              <option value="discount">高折扣参考</option>
+            </select>
+          </label>
+
+          <label class="field">
+            <span class="field-label">来源</span>
+            <select id="filter-source">
+              <option value="all">全部来源</option>
+              <option value="steam-catalog">Steam 商店扫描</option>
+              <option value="steam-details">Steam 价格校验</option>
+              <option value="steam-spotlight">Steam 精选活动</option>
+              <option value="steam-discounts">Steam 促销索引</option>
+              <option value="gamerpower">GamerPower 聚合</option>
+            </select>
+          </label>
+
+          <label class="field">
+            <span class="field-label">排序</span>
+            <select id="sort">
+              <option value="priority">按价值（默认）</option>
+              <option value="recent">最新发现</option>
+              <option value="discount">折扣深度</option>
+              <option value="price">价格从低到高</option>
+              <option value="title">名称</option>
+            </select>
+          </label>
+
+          <label class="field">
+            <span class="field-label">评价结果</span>
+            <select id="filter-rating">
+              <option value="all">全部评价</option>
+              <option value="overwhelming">好评如潮</option>
+              <option value="veryPositive">特别好评</option>
+              <option value="positive">多半好评 / 好评</option>
+              <option value="mixed">褒贬不一</option>
+              <option value="negative">差评类</option>
+            </select>
+          </label>
+
+          <label class="field">
+            <span class="field-label">评测数</span>
+            <select id="filter-review-count">
+              <option value="0">不限</option>
+              <option value="100">≥ 100 条</option>
+              <option value="1000">≥ 1,000 条</option>
+              <option value="10000">≥ 1 万条</option>
+              <option value="100000">≥ 10 万条</option>
+            </select>
+          </label>
+
+          <label class="toggle">
+            <input id="free-only" type="checkbox" checked />
+            <span>只看免费</span>
+          </label>
+          <label class="toggle">
+            <input id="show-demos" type="checkbox" />
+            <span>含试玩版</span>
+          </label>
+          <label class="toggle">
+            <input id="show-ended" type="checkbox" />
+            <span>含已结束</span>
+          </label>
+        </div>
+
+        <!-- 折扣 / 价格区间筛选：选择"高折扣参考"时自动展开 -->
+        <div id="range-bar" class="range-bar" hidden>
+          <div class="range-group">
+            <span class="range-label">折扣区间</span>
+            <div class="range-chips" id="discount-chips"></div>
+          </div>
+          <div class="range-group">
+            <span class="range-label">价格区间</span>
+            <div class="range-chips" id="price-chips"></div>
+          </div>
+          <button type="button" class="btn btn--tiny" id="range-reset">清除区间</button>
+          <span class="range-summary" id="range-summary"></span>
+        </div>
+      </section>
+
+      <div class="content">
+        <section class="grid" id="grid" aria-live="polite" aria-busy="true">
+          <div class="skeleton-note">正在加载数据…</div>
+        </section>
+
+        <aside class="panel panel--feed" aria-label="实时动态">
+          <div class="feed-head">
+            <h2>实时动态</h2>
+            <span class="feed-live" id="feed-live">● 实时</span>
+          </div>
+          <ul class="feed" id="feed">
+            <li class="feed-empty">暂无事件</li>
+          </ul>
+          <div class="feed-foot">
+            <button id="feed-clear" class="btn btn--tiny" type="button">清空</button>
+            <span id="feed-count" class="feed-count">0 条</span>
+          </div>
+        </aside>
+      </div>
+
+      <section class="panel panel--status" aria-label="采集状态">
+        <details>
+          <summary>采集状态与数据源</summary>
+          <div id="status-body" class="status-body">加载中…</div>
+        </details>
+      </section>
+    </main>
+
+    <footer class="footer">
+      <p>
+        数据来源：Steam 商店公开接口 + GamerPower 聚合。价格与限免状态以 Steam 商店页面为准。
+        <span class="footer-note">限免信息变动频繁，请在领取前确认页面仍显示免费。</span>
+      </p>
+    </footer>
+
+    <div id="toasts" class="toasts" aria-live="assertive" aria-atomic="false"></div>
+
+    <script type="module" src="/app.js"></script>
+  </body>
+</html>

@@ -1,0 +1,185 @@
+name: CI
+
+on:
+  push:
+    branches: ['**']
+  pull_request:
+  workflow_dispatch:
+
+# 只读权限即可：本工作流不做任何写入
+permissions:
+  contents: read
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # 单元/集成测试：不联网、不安装依赖（项目零依赖）
+  # ---------------------------------------------------------------------------
+  test:
+    name: test (node ${{ matrix.node }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # 引擎要求 >= 22.21.0（见 src/net.js 的 proxyFeatureSupport 与 README「环境依赖」）
+        node: ['22.x', '24.x']
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+
+      - name: 确认零依赖
+        run: |
+          if [ -f package-lock.json ] || [ -f yarn.lock ] || [ -f pnpm-lock.yaml ]; then
+            echo "::error::本项目应保持零依赖，不应出现 lockfile"
+            exit 1
+          fi
+          if [ -d node_modules ]; then
+            echo "::error::不应存在 node_modules"
+            exit 1
+          fi
+
+      - name: 语法检查（全部源文件）
+        run: |
+          fail=0
+          for f in $(find src scripts bench test -name '*.js'); do
+            node --check "$f" || { echo "::error file=$f::语法错误"; fail=1; }
+          done
+          exit $fail
+
+      - name: 文档链接自检
+        run: node scripts/check-doc-links.js
+
+      - name: 单元与集成测试
+        run: npm test
+
+      - name: 冒烟测试（不联网的 API 面）
+        run: |
+          # 启动服务（跳过预热，避免联网），确认能起来并响应
+          node src/app.js --no-seed > server.log 2>&1 &
+          SERVER_PID=$!
+          for i in $(seq 1 30); do
+            if curl -sf http://127.0.0.1:8787/api/health > /dev/null; then break; fi
+            sleep 1
+          done
+          echo "--- /api/health ---"
+          curl -sf http://127.0.0.1:8787/api/health
+          echo
+          echo "--- /api/status ---"
+          curl -sf http://127.0.0.1:8787/api/status | head -c 600
+          echo
+          echo "--- 首页 ---"
+          curl -sfo /dev/null -w 'GET / -> %{http_code}\n' http://127.0.0.1:8787/
+          echo "--- bench 对照页 ---"
+          curl -sfo /dev/null -w 'GET /bench/baseline.html -> %{http_code}\n' http://127.0.0.1:8787/bench/baseline.html
+          kill $SERVER_PID || true
+
+  # ---------------------------------------------------------------------------
+  # 仓库规范检查
+  # ---------------------------------------------------------------------------
+  hygiene:
+    name: hygiene
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 必需文件齐全
+        run: |
+          missing=0
+          for f in README.md LICENSE CONTRIBUTING.md SECURITY.md CHANGELOG.md \
+                   .gitignore .editorconfig .gitattributes package.json \
+                   .env.example start.bat 启动.bat \
+                   docs/README.md docs/installation.md docs/requirements.md \
+                   docs/configuration.md docs/product.md docs/architecture.md \
+                   docs/api.md docs/troubleshooting.md; do
+            if [ ! -f "$f" ]; then echo "::error::缺少 $f"; missing=1; fi
+          done
+          exit $missing
+
+      - name: 启动器两份文件必须一致（中文名只是英文名的副本）
+        run: |
+          if ! cmp -s start.bat 启动.bat; then
+            echo "::error::start.bat 与 启动.bat 内容不一致，请保持同步（cp start.bat 启动.bat）"
+            exit 1
+          fi
+
+      - name: package.json 的 engines 必须覆盖代理所需版本
+        run: |
+          node -e '
+            const pkg = require("./package.json");
+            const m = /^>=(\d+)\.(\d+)\.(\d+)$/.exec(pkg.engines?.node ?? "");
+            if (!m) { console.error("::error::engines.node 应为 >=x.y.z"); process.exit(1); }
+            const [, major, minor] = m.map(Number);
+            // --use-env-proxy 需要 v22.21.0；24.x 及以后齐全
+            const ok = major >= 24 || (major === 22 && minor >= 21);
+            if (!ok) {
+              console.error(`::error::engines.node = ${pkg.engines.node} 不足以支持 --use-env-proxy（需 >= 22.21.0）`);
+              process.exit(1);
+            }
+          '
+
+      - name: 不得提交敏感/运行期文件
+        run: |
+          bad=0
+          for f in .env .env.proxy server.log .data/state.json; do
+            if [ -e "$f" ]; then echo "::error::$f 不应存在于仓库中"; bad=1; fi
+          done
+          exit $bad
+
+      - name: 不得出现个人路径
+        run: |
+          if grep -rInE 'C:\\\\Users\\\\|/home/[a-z]+/|D:\\\\project' \
+               --include='*.js' --include='*.md' --include='*.json' \
+               --include='*.html' --include='*.bat' . ; then
+            echo "::error::发现疑似个人绝对路径，请改为示例值"
+            exit 1
+          fi
+
+      - name: bat 文件必须为 CRLF 且不含非 ASCII
+        run: |
+          bad=0
+          for f in *.bat; do
+            if file "$f" | grep -q CRLF; then :; else echo "::error file=$f::必须是 CRLF 换行"; bad=1; fi
+            if LC_ALL=C grep -qP '[\x80-\xFF]' "$f"; then
+              echo "::error file=$f::必须是纯 ASCII（cmd 按 ANSI 代码页解析，非 ASCII 会破坏语法）"
+              bad=1
+            fi
+          done
+          exit $bad
+
+  # ---------------------------------------------------------------------------
+  # Windows 专用：验证一键启动器
+  # ---------------------------------------------------------------------------
+  windows-launcher:
+    name: windows launcher
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.x'
+
+      - name: 启动器自检（不联网、不启动服务）
+        shell: cmd
+        # < nul 让脚本末尾的 pause 立即返回（CI 里没有可交互的 stdin）
+        run: start.bat --check < nul
+
+      - name: 中文名启动器同样可用
+        shell: cmd
+        run: 启动.bat --check < nul
+
+      - name: 确认服务可启动并响应
+        shell: pwsh
+        run: |
+          # 跳过预热避免联网；确认服务能起来
+          $p = Start-Process -FilePath node -ArgumentList 'src/app.js','--no-seed' -PassThru -RedirectStandardOutput server.log -RedirectStandardError server.err.log
+          $ok = $false
+          for ($i = 0; $i -lt 30; $i++) {
+            try { $r = Invoke-RestMethod 'http://127.0.0.1:8787/api/health' -TimeoutSec 3; if ($r.ok) { $ok = $true; break } } catch {}
+            Start-Sleep -Seconds 1
+          }
+          if (-not $ok) { Get-Content server.log,server.err.log -ErrorAction SilentlyContinue; throw '服务未能健康响应' }
+          Write-Host 'health ok'
+          Stop-Process -Id $p.Id -Force
